@@ -119,6 +119,75 @@ curl -X POST http://localhost:8000/api/v1/repo/scan \
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+    U[User] --> F[Frontend UI<br/>React + Vite]
+    F -->|POST /api/v1/repo/scan| B[FastAPI Backend]
+    F -->|POST /api/v1/repo/upload| B
+    F -->|GET /api/v1/repo/file| B
+    F -->|GET /api/v1/metrics/file| B
+    F -->|POST /api/v1/ai/analyze| B
+    F -->|POST /api/v1/ai/chat| B
+
+    B --> GS[GitHub Clone Service]
+    B --> RS[Repo Scanner]
+    B --> DP[Dependency Parser]
+    B --> GB[Graph Builder]
+    B --> SS[Session Service]
+    B --> MS[Metrics Service]
+    B --> AI[Gemini AI Service]
+
+    GS --> FS[(Temp Filesystem)]
+    RS --> FS
+    SS --> FS
+```
+
+### GitHub Repository Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Frontend
+    participant API as FastAPI
+    participant GitHub
+    participant Scanner as Scan Pipeline
+
+    User->>UI: Paste GitHub URL and click Scan
+    UI->>API: POST /api/v1/repo/scan
+    API->>GitHub: Clone public repo
+    GitHub-->>API: Repository contents
+    API->>Scanner: Scan files + parse deps + build graph
+    Scanner-->>API: Nodes + edges + session
+    API-->>UI: Graph payload
+    UI-->>User: Interactive visualization
+```
+
+### Local Folder Upload Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Frontend
+    participant Browser as Browser File APIs
+    participant API as FastAPI
+    participant Scanner as Scan Pipeline
+
+    User->>UI: Choose local folder
+    UI->>Browser: Read directory entries
+    Browser-->>UI: Project files
+    UI->>UI: Filter ignored folders and ZIP files
+    UI->>API: POST /api/v1/repo/upload
+    API->>API: Extract ZIP to temp dir
+    API->>Scanner: Scan files + parse deps + build graph
+    Scanner-->>API: Nodes + edges + session
+    API-->>UI: Graph payload
+    UI-->>User: Interactive visualization
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -171,6 +240,3 @@ https://github.com/realpython/codetiming
 
 ---
 
-## License
-
-MIT — add your preferred license here.
