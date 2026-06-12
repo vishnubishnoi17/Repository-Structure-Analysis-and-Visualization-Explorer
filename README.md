@@ -1,10 +1,15 @@
 # RepoViz
 
+## Live Demo
+
+https://repository-structure-analysis-and-v.vercel.app
+
 RepoViz is a local-first repository visualizer for GitHub repositories and local project folders. It scans a codebase, builds a dependency-aware graph, shows file metrics, and lets you inspect files with AI-assisted summaries and Q&A.
 
 It is designed to be easy to run on a laptop, straightforward to demo, and practical to extend.
 
-## What You Get
+
+## Features:
 
 - Scan a public GitHub repository from a URL or `owner/repo`
 - Upload and scan a local project folder directly from the browser
@@ -22,15 +27,15 @@ It is designed to be easy to run on a laptop, straightforward to demo, and pract
 
 ## Architecture
 
-```mermaid
 flowchart LR
     U[User] --> F[Frontend UI<br/>React + Vite]
-    F -->|POST /repo/scan| B[FastAPI Backend]
-    F -->|POST /repo/upload| B
-    F -->|GET /repo/file| B
-    F -->|GET /metrics/file| B
-    F -->|POST /ai/analyze| B
-    F -->|POST /ai/chat| B
+
+    F -->|POST /api/v1/repo/scan| B[FastAPI Backend]
+    F -->|POST /api/v1/repo/upload| B
+    F -->|GET /api/v1/repo/file| B
+    F -->|GET /api/v1/metrics/file| B
+    F -->|POST /api/v1/ai/analyze| B
+    F -->|POST /api/v1/ai/chat| B
 
     B --> GS[GitHub Clone Service]
     B --> RS[Repo Scanner]
@@ -43,7 +48,6 @@ flowchart LR
     GS --> FS[(Temp Filesystem)]
     RS --> FS
     SS --> FS
-```
 
 ## Scan Flows
 
@@ -241,7 +245,7 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:5173`.
 
 ### Option 2: Manual Setup
 
@@ -575,7 +579,7 @@ Verify:
 - backend is running on `http://localhost:8000`
 - Vite dev server is running on `http://localhost:3000`
 - `VITE_API_BASE_URL` is correct
-- the `/api` proxy in [vite.config.js](/home/jaishreeram/Downloads/repo-visualizer/frontend/vite.config.js:1) still points to the backend
+- the `/api` proxy in `frontend/vite.config.js` still points to the backend
 
 ### Local Folder Upload Fails
 
