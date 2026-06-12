@@ -2,40 +2,7 @@ import React, { useState, useRef } from 'react'
 import { useRepoGraph } from '../hooks/useRepoGraph'
 import { useGraphStore } from '../store/graphStore'
 import SearchBar from './SearchBar'
-
-// Excluded dirs/files when zipping locally
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', '__pycache__', '.venv', 'venv',
-  'dist', 'build', '.next', '.cache', 'target', 'out',
-  '.mypy_cache', '.pytest_cache', 'coverage',
-])
-
-function shouldSkip(relativePath) {
-  const parts = relativePath.split('/')
-  return parts.some(p => SKIP_DIRS.has(p))
-}
-
-async function filesToZip(fileList) {
-  // Lazy-load JSZip from the installed package
-  const JSZip = (await import('jszip')).default
-  const zip = new JSZip()
-  let added = 0
-  const files = Array.from(fileList)
-
-  for (const file of files) {
-    const rel = file.webkitRelativePath || file.name
-    if (shouldSkip(rel)) continue
-    const buf = await file.arrayBuffer()
-    zip.file(rel, buf)
-    added += 1
-  }
-
-  if (added === 0) {
-    throw new Error('No uploadable files found in the selected folder')
-  }
-
-  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })
-}
+import { zipFilesFromDirectoryPicker, zipFilesFromFileList } from '../utils/localUpload'
 
 export default function Toolbar() {
   const { scan, uploadAndScan } = useRepoGraph()
@@ -69,11 +36,37 @@ export default function Toolbar() {
 
     try {
       setUploadStatus('zipping')
-      const zipBlob = await filesToZip(files)
+      const zipBlob = await zipFilesFromFileList(files)
       setUploadStatus('uploading')
       await uploadAndScan(zipBlob)
     } catch (err) {
       setScanError(err.message || 'Local upload failed')
+    } finally {
+      setUploadStatus(null)
+    }
+  }
+
+  async function handleUploadClick() {
+    if (busy) return
+
+    if (typeof window.showDirectoryPicker !== 'function') {
+      folderInputRef.current?.click()
+      return
+    }
+
+    try {
+      setUploadStatus('zipping')
+      const zipBlob = await zipFilesFromDirectoryPicker()
+      if (!zipBlob) {
+        folderInputRef.current?.click()
+        return
+      }
+      setUploadStatus('uploading')
+      await uploadAndScan(zipBlob)
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        setScanError(err.message || 'Local upload failed')
+      }
     } finally {
       setUploadStatus(null)
     }
@@ -123,7 +116,7 @@ export default function Toolbar() {
       />
       <button
         className={`toolbar__upload-btn${uploadStatus ? ' loading' : ''}`}
-        onClick={() => folderInputRef.current?.click()}
+        onClick={handleUploadClick}
         disabled={busy}
         title="Upload a local project folder"
       >
