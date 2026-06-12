@@ -7,14 +7,22 @@ from app.core.models import FileNode
 
 # Files we care about for dependency analysis
 SUPPORTED_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx",
+    ".py", ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx",
     ".c", ".cpp", ".h", ".hpp",
-    ".java", ".go", ".rs",
+    ".java", ".go", ".rs", ".kt", ".kts", ".swift",
     ".css", ".scss", ".less",
-    ".json", ".yaml", ".yml", ".toml",
-    ".md", ".txt", ".env",
-    ".html", ".vue", ".svelte",
+    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".md", ".txt", ".env", ".sql", ".graphql", ".gql",
+    ".html", ".vue", ".svelte", ".xml",
     ".rb", ".php", ".sh",
+}
+
+SUPPORTED_FILENAMES = {
+    "Dockerfile",
+    "Makefile",
+    "Procfile",
+    ".gitignore",
+    ".dockerignore",
 }
 
 ALWAYS_EXCLUDE = {
@@ -54,12 +62,15 @@ class RepoScanner:
         for entry in entries:
             # Skip excluded directories
             if entry.is_dir():
-                if entry.name in self.exclude_dirs or entry.name.startswith("."):
+                if entry.name in self.exclude_dirs:
                     continue
                 self._traverse(entry, depth + 1, nodes)
 
             elif entry.is_file():
-                if entry.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                if (
+                    entry.suffix.lower() not in SUPPORTED_EXTENSIONS
+                    and entry.name not in SUPPORTED_FILENAMES
+                ):
                     continue
                 if self._is_ignored(entry):
                     continue
@@ -126,8 +137,7 @@ class RepoScanner:
                     node["children"] = [
                         build_subtree(c, depth + 1)
                         for c in children
-                        if not c.name.startswith(".")
-                        and c.name not in self.exclude_dirs
+                        if c.name not in self.exclude_dirs
                     ]
                 except PermissionError:
                     node["children"] = []

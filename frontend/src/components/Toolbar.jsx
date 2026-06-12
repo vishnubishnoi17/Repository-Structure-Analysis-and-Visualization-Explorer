@@ -12,7 +12,7 @@ const SKIP_DIRS = new Set([
 
 function shouldSkip(relativePath) {
   const parts = relativePath.split('/')
-  return parts.some(p => SKIP_DIRS.has(p) || p.startsWith('.'))
+  return parts.some(p => SKIP_DIRS.has(p))
 }
 
 async function filesToZip(fileList) {

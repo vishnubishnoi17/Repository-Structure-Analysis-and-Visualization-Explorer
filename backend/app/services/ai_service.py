@@ -1,4 +1,5 @@
 import httpx
+import asyncio
 from typing import Optional
 from app.core.config import settings
 
@@ -76,7 +77,7 @@ Answer clearly and concisely. Reference specific parts of the code when helpful.
             last_error = None
             for model in self._candidate_models():
                 url = f"{GEMINI_API_BASE}/{model}:generateContent?key={self.api_key}"
-                resp = await client.post(url, json=payload)
+                resp = await self._post_with_retry(client, url, payload)
                 if resp.status_code == 404:
                     last_error = f"Model not found: {model}"
                     continue
@@ -88,7 +89,7 @@ Answer clearly and concisely. Reference specific parts of the code when helpful.
             discovered = await self._discover_model(client)
             if discovered:
                 url = f"{GEMINI_API_BASE}/{discovered}:generateContent?key={self.api_key}"
-                resp = await client.post(url, json=payload)
+                resp = await self._post_with_retry(client, url, payload)
                 if resp.is_success:
                     return self._extract_text(resp.json())
                 self._raise_api_error(resp)
@@ -106,6 +107,23 @@ Answer clearly and concisely. Reference specific parts of the code when helpful.
                 candidates.append(model)
                 seen.add(model)
         return candidates
+
+    async def _post_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        payload: dict,
+        attempts: int = 3,
+    ) -> httpx.Response:
+        last_response = None
+        for attempt in range(attempts):
+            response = await client.post(url, json=payload)
+            last_response = response
+            if response.status_code not in {429, 500, 502, 503, 504}:
+                return response
+            if attempt < attempts - 1:
+                await asyncio.sleep(0.75 * (attempt + 1))
+        return last_response
 
     async def _discover_model(self, client: httpx.AsyncClient) -> Optional[str]:
         resp = await client.get(f"{LIST_MODELS_URL}?key={self.api_key}")

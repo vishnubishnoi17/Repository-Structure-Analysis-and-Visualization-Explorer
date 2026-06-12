@@ -13,7 +13,11 @@ PATTERNS = {
     ],
     # JavaScript / TypeScript / JSX / TSX
     ".js":  [re.compile(r"""(?:import|require)\s*(?:\{[^}]*\}\s*from\s*)?['"](\.{1,2}/[^'"]+)['"]""")],
+    ".mjs": [re.compile(r"""(?:import|require)\s*(?:\{[^}]*\}\s*from\s*)?['"](\.{1,2}/[^'"]+)['"]""")],
+    ".cjs": [re.compile(r"""(?:import|require)\s*(?:\{[^}]*\}\s*from\s*)?['"](\.{1,2}/[^'"]+)['"]""")],
     ".ts":  [re.compile(r"""import\s+.*?from\s+['"](\.{1,2}/[^'"]+)['"]""")],
+    ".mts": [re.compile(r"""import\s+.*?from\s+['"](\.{1,2}/[^'"]+)['"]""")],
+    ".cts": [re.compile(r"""import\s+.*?from\s+['"](\.{1,2}/[^'"]+)['"]""")],
     ".jsx": [re.compile(r"""import\s+.*?from\s+['"](\.{1,2}/[^'"]+)['"]""")],
     ".tsx": [re.compile(r"""import\s+.*?from\s+['"](\.{1,2}/[^'"]+)['"]""")],
     # C / C++
@@ -91,7 +95,7 @@ class DependencyParser:
             source_dir = Path(source.rel_path).parent
             candidate = (source_dir / raw).resolve()
             # Try with and without extensions
-            for ext in ["", ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs"]:
+            for ext in ["", ".py", ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx", ".go", ".rs"]:
                 key = str(candidate).replace("\\", "/") + ext
                 # Strip leading slash/cwd noise
                 for rel in self._id_index:

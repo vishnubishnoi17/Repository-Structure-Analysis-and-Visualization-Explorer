@@ -5,23 +5,16 @@ import { useGraphStore } from '../store/graphStore'
 // Small, focused repos — 10-20 files each, scan fast, look great in the graph
 const EXAMPLES = [
   {
-    url: 'https://github.com/kelseyhightower/nocode',
-    label: 'nocode',
-    desc: 'The best code is no code',
-    lang: 'Markdown',
-    color: '#3ecf8e',
+    url: 'https://github.com/pallets/itsdangerous',
+    label: 'pallets/itsdangerous',
+    desc: 'Compact Python library with clear modules',
+    lang: 'Python',
+    color: '#5b7bff',
   },
   {
-    url: 'https://github.com/sindresorhus/ora',
-    label: 'sindresorhus/ora',
-    desc: 'Elegant terminal spinner · Node.js',
-    lang: 'JS',
-    color: '#f6a623',
-  },
-  {
-    url: 'https://github.com/nicolo-ribaudo/tc39-proposal-function-memo',
-    label: 'tc39/function-memo',
-    desc: 'TC39 JS proposal · tiny codebase',
+    url: 'https://github.com/sindresorhus/is',
+    label: 'sindresorhus/is',
+    desc: 'Typed JavaScript type checks with good import structure',
     lang: 'JS',
     color: '#f6a623',
   },
@@ -46,6 +39,13 @@ const EXAMPLES = [
     lang: 'Go',
     color: '#00acd7',
   },
+  {
+    url: 'https://github.com/lodash/lodash',
+    label: 'lodash/lodash',
+    desc: 'Familiar JavaScript utility codebase for demos',
+    lang: 'JS',
+    color: '#f6a623',
+  },
 ]
 
 const LANG_COLORS = {
@@ -63,7 +63,7 @@ const SKIP_DIRS = new Set([
 
 function shouldSkip(relativePath) {
   const parts = relativePath.split('/')
-  return parts.some(p => SKIP_DIRS.has(p) || p.startsWith('.'))
+  return parts.some(p => SKIP_DIRS.has(p))
 }
 
 async function filesToZip(fileList) {
