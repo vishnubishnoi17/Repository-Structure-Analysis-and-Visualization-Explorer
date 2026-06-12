@@ -484,17 +484,27 @@ Request:
 
 ## Frontend To Backend Interaction
 
-```mermaid
 flowchart TD
-    A[Toolbar / Empty State] --> B[useRepoGraph hook]
-    B --> C[frontend/services/api.js]
-    C --> D[/api/v1/repo/scan]
-    C --> E[/api/v1/repo/upload]
-    C --> F[/api/v1/repo/file]
-    C --> G[/api/v1/metrics/file]
-    C --> H[/api/v1/ai/analyze]
-    C --> I[/api/v1/ai/chat]
-```
+    A["Toolbar / Empty State"]
+    B["useRepoGraph Hook"]
+    C["API Service"]
+
+    D["Scan Repository"]
+    E["Upload Repository"]
+    F["Read File"]
+    G["File Metrics"]
+    H["AI Analyze"]
+    I["AI Chat"]
+
+    A --> B
+    B --> C
+
+    C --> D
+    C --> E
+    C --> F
+    C --> G
+    C --> H
+    C --> I
 
 ## Local Folder Upload Notes
 
