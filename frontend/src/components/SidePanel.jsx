@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useGraphStore } from '../store/graphStore'
 import { useAIAnalysis } from '../hooks/useAIAnalysis'
 import { useFileMetrics } from '../hooks/useMetrics'
@@ -29,32 +29,42 @@ function MetricsBadge({ label, value }) {
 export default function SidePanel({ node }) {
   const { aiSummary, aiLoading, aiError, clearSelection } = useGraphStore()
   const { analyze, chat } = useAIAnalysis()
-  const { data: metrics, isLoading: metricsLoading } = useFileMetrics(node?.data?.abs_path)
+  const fileRef = node
+    ? {
+        path: node.data.abs_path ?? null,
+        relPath: node.data.rel_path,
+        sessionId: node.data.sessionId ?? null,
+        displayPath: node.data.rel_path,
+      }
+    : null
+  const { data: metrics, isLoading: metricsLoading } = useFileMetrics(fileRef)
   const [question, setQuestion] = useState('')
   const [chatAnswer, setChatAnswer] = useState(null)
   const [chatLoading, setChatLoading] = useState(false)
-  const [prevNodeId, setPrevNodeId] = useState(null)
-
-  // Reset chat when node changes (without auto-triggering AI)
-  if (node?.id !== prevNodeId) {
-    setPrevNodeId(node?.id)
+ 
+  useEffect(() => {
     setChatAnswer(null)
     setQuestion('')
-  }
+  }, [node?.id])
 
   if (!node) return null
 
   const icon = EXT_ICON[node.data.extension] ?? '📄'
   const color = GROUP_COLOR[node.data.group] ?? '#475569'
-  const absPath = node.data.abs_path
+  const canInspect = !!fileRef && (!!fileRef.path || (!!fileRef.sessionId && !!fileRef.relPath))
+  const sourceLabel = node.data.sourceType === 'github'
+    ? 'GitHub snapshot'
+    : node.data.sourceType === 'upload'
+    ? 'Uploaded workspace'
+    : 'Local workspace'
 
   async function handleChat(e) {
     e.preventDefault()
-    if (!question.trim() || !absPath) return
+    if (!question.trim() || !canInspect) return
     setChatLoading(true)
     setChatAnswer(null)
     try {
-      const answer = await chat(absPath, question)
+      const answer = await chat(fileRef, question)
       setChatAnswer(answer)
     } catch (err) {
       setChatAnswer(`Error: ${err.message}`)
@@ -72,6 +82,7 @@ export default function SidePanel({ node }) {
         <div className="side-panel__header-text">
           <div className="side-panel__title">{node.data.label}</div>
           <div className="side-panel__path">{node.data.rel_path}</div>
+          <div className="side-panel__source">{sourceLabel}</div>
         </div>
         <button className="side-panel__close" onClick={clearSelection} aria-label="Close">
           ✕
@@ -95,7 +106,7 @@ export default function SidePanel({ node }) {
             </div>
           ) : (
             <div style={{ color: 'var(--text-2)', fontSize: 11 }}>
-              {absPath ? 'Metrics unavailable for remote repos' : 'No metrics'}
+              Metrics unavailable for this file
             </div>
           )}
         </div>
@@ -109,17 +120,16 @@ export default function SidePanel({ node }) {
             </div>
             <button
               className="ai-section__trigger"
-              onClick={() => absPath && analyze(absPath, aiSummary != null)}
-              disabled={aiLoading || !absPath}
-              title={!absPath ? 'AI analysis requires a local path' : ''}
+              onClick={() => canInspect && analyze(fileRef, aiSummary != null)}
+              disabled={aiLoading || !canInspect}
             >
               {aiLoading ? 'Analyzing…' : aiSummary ? '↺ Refresh' : 'Analyze'}
             </button>
           </div>
 
-          {!absPath && (
+          {!canInspect && (
             <p style={{ color: 'var(--text-2)', fontSize: 11 }}>
-              AI analysis is available for local repositories only.
+              This file is not available for inspection in the current session.
             </p>
           )}
 
@@ -140,7 +150,7 @@ export default function SidePanel({ node }) {
         </div>
 
         {/* Chat */}
-        {absPath && (
+        {canInspect && (
           <div className="chat-section">
             <div className="chat-section__title">Ask about this file</div>
             <form className="chat-section__form" onSubmit={handleChat}>

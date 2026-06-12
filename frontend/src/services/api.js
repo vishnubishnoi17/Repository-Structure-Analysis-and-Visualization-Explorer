@@ -7,6 +7,20 @@ const client = axios.create({
   timeout: 120000,
 })
 
+function buildFileParams(fileRef) {
+  if (!fileRef) return {}
+  if (fileRef.sessionId && fileRef.relPath) {
+    return {
+      session_id: fileRef.sessionId,
+      rel_path: fileRef.relPath,
+    }
+  }
+  if (fileRef.path) {
+    return { path: fileRef.path }
+  }
+  return {}
+}
+
 export async function scanRepo(path, options = {}) {
   const { data } = await client.post('/repo/scan', {
     path,
@@ -16,20 +30,22 @@ export async function scanRepo(path, options = {}) {
   return data
 }
 
-export async function readFile(path) {
-  const { data } = await client.get('/repo/file', { params: { path } })
+export async function readFile(fileRef) {
+  const { data } = await client.get('/repo/file', {
+    params: buildFileParams(fileRef),
+  })
   return data
 }
 
-export async function analyzeFile(filePath, fileContent, forceRefresh = false) {
-  const ext = filePath.split('.').pop()
+export async function analyzeFile(fileLabel, fileContent, forceRefresh = false) {
+  const ext = fileLabel.split('.').pop()
   const langMap = {
     py: 'Python', js: 'JavaScript', ts: 'TypeScript',
     jsx: 'React JSX', tsx: 'React TSX', go: 'Go',
     rs: 'Rust', java: 'Java', cpp: 'C++', c: 'C',
   }
   const { data } = await client.post('/ai/analyze', {
-    file_path: filePath,
+    file_path: fileLabel,
     file_content: fileContent,
     language: langMap[ext] ?? null,
     force_refresh: forceRefresh,
@@ -37,9 +53,9 @@ export async function analyzeFile(filePath, fileContent, forceRefresh = false) {
   return data
 }
 
-export async function chatAboutFile(filePath, fileContent, question) {
+export async function chatAboutFile(fileLabel, fileContent, question) {
   const { data } = await client.post('/ai/chat', {
-    file_path: filePath,
+    file_path: fileLabel,
     file_content: fileContent,
     question,
   })
@@ -58,7 +74,9 @@ export async function uploadRepo(zipBlob, options = {}) {
   return data
 }
 
-export async function getFileMetrics(path) {
-  const { data } = await client.get('/metrics/file', { params: { path } })
+export async function getFileMetrics(fileRef) {
+  const { data } = await client.get('/metrics/file', {
+    params: buildFileParams(fileRef),
+  })
   return data
 }

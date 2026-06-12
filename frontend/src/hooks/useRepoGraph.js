@@ -10,7 +10,12 @@ export function useRepoGraph() {
     setScanError(null)
     try {
       const result = await scanRepo(path, options)
-      setGraph(result.graph.nodes, result.graph.edges, result.base_path)
+      setGraph(result.graph.nodes, result.graph.edges, {
+        basePath: result.base_path,
+        repoLabel: result.display_name,
+        sourceType: result.source_type,
+        sessionId: result.session_id,
+      })
       return result
     } catch (err) {
       const msg = err.response?.data?.detail ?? err.message ?? 'Scan failed'
@@ -26,7 +31,12 @@ export function useRepoGraph() {
     setScanError(null)
     try {
       const result = await uploadRepo(zipBlob, options)
-      setGraph(result.graph.nodes, result.graph.edges, result.base_path)
+      setGraph(result.graph.nodes, result.graph.edges, {
+        basePath: result.base_path,
+        repoLabel: result.display_name,
+        sourceType: result.source_type,
+        sessionId: result.session_id,
+      })
       return result
     } catch (err) {
       const msg = err.response?.data?.detail ?? err.message ?? 'Upload failed'

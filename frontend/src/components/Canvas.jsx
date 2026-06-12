@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -6,7 +6,6 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   BackgroundVariant,
-  useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useGraphStore } from '../store/graphStore'
@@ -16,19 +15,28 @@ const nodeTypes = { fileNode: FileNode }
 
 const defaultEdgeOptions = {
   animated: false,
-  style: { stroke: '#3a4460', strokeWidth: 1.5 },
+  style: { stroke: '#38506b', strokeWidth: 1.4, strokeOpacity: 0.32 },
 }
 
 const GROUP_COLORS = {
-  python: '#3b82f6', javascript: '#f59e0b', typescript: '#06b6d4',
-  style: '#a78bfa', markup: '#34d399', config: '#6b7280',
-  c_cpp: '#ef4444', go: '#00ADD8', rust: '#f97316',
-  java: '#ec4899', docs: '#64748b', other: '#475569',
+  python: '#5d8cff',
+  javascript: '#f2a93b',
+  typescript: '#18b8d7',
+  style: '#ec7db8',
+  markup: '#41c28a',
+  config: '#7d8ca4',
+  c_cpp: '#f26d6d',
+  go: '#45c6e8',
+  rust: '#ff8f4d',
+  java: '#ff6ca8',
+  docs: '#7f8b9b',
+  other: '#59708a',
 }
 
-// Performance: only render edges when zoomed in enough
-function useAdaptiveEdges(edges, zoom) {
-  if (zoom < 0.3 && edges.length > 100) return []
+function getVisibleEdges(edges, nodeCount) {
+  if (nodeCount > 160) {
+    return edges.filter((_, index) => index % 2 === 0)
+  }
   return edges
 }
 
@@ -39,19 +47,27 @@ export default function Canvas() {
 
   useEffect(() => {
     setNodes(storeNodes)
-    setEdges(storeEdges)
-  }, [storeNodes, storeEdges])
+  }, [setNodes, storeNodes])
+
+  const visibleEdges = useMemo(
+    () => getVisibleEdges(storeEdges, storeNodes.length),
+    [storeEdges, storeNodes.length]
+  )
+
+  useEffect(() => {
+    setEdges(visibleEdges)
+  }, [setEdges, visibleEdges])
 
   const onNodeClick = useCallback((_, node) => {
     selectNode(node)
   }, [selectNode])
 
-  const onPaneClick = useCallback(() => {
-    // Don't clear selection on pane click — user may want to keep panel open
-  }, [])
-
   return (
     <div className="canvas-wrapper">
+      <div className="canvas-wrapper__hint">
+        <span>Drag to explore</span>
+        <span>Click a node for metrics and Gemini</span>
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -59,32 +75,38 @@ export default function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.12 }}
-        minZoom={0.03}
-        maxZoom={2.5}
+        fitViewOptions={{ padding: 0.18, duration: 700 }}
+        minZoom={0.2}
+        maxZoom={2}
         defaultEdgeOptions={defaultEdgeOptions}
         elevateNodesOnSelect
         nodesDraggable
+        panOnDrag
         panOnScroll={false}
         zoomOnScroll
         deleteKeyCode={null}
+        selectionOnDrag={false}
         proOptions={{ hideAttribution: true }}
       >
         <Background
           variant={BackgroundVariant.Dots}
-          color="#1e2330"
-          gap={28}
-          size={1}
+          color="#213145"
+          gap={24}
+          size={1.2}
         />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} position="bottom-left" />
         <MiniMap
-          nodeColor={(n) => GROUP_COLORS[n.data?.group] ?? '#475569'}
-          maskColor="#0a0b0f99"
-          style={{ background: '#0f1117', border: '1px solid #252c3e', borderRadius: 10 }}
+          nodeColor={(n) => GROUP_COLORS[n.data?.group] ?? '#59708a'}
+          maskColor="#061018b8"
+          style={{
+            background: 'rgba(7, 16, 24, 0.92)',
+            border: '1px solid rgba(114, 145, 178, 0.22)',
+            borderRadius: 16,
+          }}
           nodeStrokeWidth={2}
-          nodeBorderRadius={2}
+          pannable
+          zoomable
         />
       </ReactFlow>
     </div>

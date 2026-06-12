@@ -4,6 +4,7 @@ from typing import Optional
 from app.services.repo_scanner import RepoScanner
 from app.services.dependency_parser import DependencyParser
 from app.services.github_fetcher import is_github_input, parse_github_url, clone_repo
+from app.services.session_service import session_service
 from app.core.graph_builder import GraphBuilder
 from app.core.config import settings
 import os
@@ -31,12 +32,16 @@ async def scan_repository(request: ScanRequest):
     """
     raw = request.path.strip()
     tmp_dir = None
+    source_type = "local"
+    display_name = os.path.basename(raw.rstrip("/")) or raw
 
     if is_github_input(raw):
         parsed = parse_github_url(raw)
         if not parsed:
             raise HTTPException(status_code=400, detail="Could not parse GitHub URL")
         owner, repo = parsed
+        source_type = "github"
+        display_name = f"{owner}/{repo}"
         try:
             tmp_dir = clone_repo(
                 owner, repo,
@@ -68,20 +73,29 @@ async def scan_repository(request: ScanRequest):
 
         builder = GraphBuilder()
         graph = builder.build(files, file_deps, base_path=path)
+        session = session_service.create_session(
+            root_path=path,
+            display_name=display_name,
+            source_type=source_type,
+            cleanup_path=path if source_type == "github" else None,
+        )
 
-        # Strip abs_path from nodes (not needed client-side, minor security)
         for node in graph["nodes"]:
-            node["data"].pop("abs_path", None)
+            node["data"]["session_id"] = session.session_id
+            node["data"]["source_type"] = source_type
 
         return {
             "status": "success",
             "base_path": path,
+            "display_name": display_name,
+            "session_id": session.session_id,
+            "source_type": source_type,
             "node_count": len(graph["nodes"]),
             "edge_count": len(graph["edges"]),
             "graph": graph,
         }
     finally:
-        if tmp_dir is not None:
+        if tmp_dir is not None and source_type != "github":
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
@@ -95,12 +109,29 @@ async def get_file_tree(path: str = Query(...)):
 
 
 @router.get("/file")
-async def read_file(path: str = Query(...)):
-    path = os.path.expanduser(path)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=400, detail="Path is not a file")
+async def read_file(
+    path: Optional[str] = Query(default=None),
+    session_id: Optional[str] = Query(default=None),
+    rel_path: Optional[str] = Query(default=None),
+):
+    if session_id and rel_path:
+        try:
+            resolved = session_service.resolve_file(session_id, rel_path)
+            path = str(resolved)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+    elif path:
+        path = os.path.expanduser(path)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="File not found")
+        if not os.path.isfile(path):
+            raise HTTPException(status_code=400, detail="Path is not a file")
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either path or session_id + rel_path",
+        )
+
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
@@ -133,6 +164,7 @@ async def upload_repository(
         raise HTTPException(status_code=400, detail="Only .zip files are accepted")
 
     tmp_dir = tempfile.mkdtemp(prefix="repoviz_upload_")
+    session_created = False
     try:
         # Save uploaded zip
         zip_path = os.path.join(tmp_dir, "upload.zip")
@@ -172,16 +204,29 @@ async def upload_repository(
 
         builder = GraphBuilder()
         graph = builder.build(files, file_deps, base_path=scan_root)
+        display_name = os.path.basename(scan_root.rstrip(os.sep)) or "uploaded-project"
+        session = session_service.create_session(
+            root_path=scan_root,
+            display_name=display_name,
+            source_type="upload",
+            cleanup_path=tmp_dir,
+        )
+        session_created = True
 
         for node in graph["nodes"]:
-            node["data"].pop("abs_path", None)
+            node["data"]["session_id"] = session.session_id
+            node["data"]["source_type"] = "upload"
 
         return {
             "status": "success",
             "base_path": os.path.basename(scan_root),
+            "display_name": display_name,
+            "session_id": session.session_id,
+            "source_type": "upload",
             "node_count": len(graph["nodes"]),
             "edge_count": len(graph["edges"]),
             "graph": graph,
         }
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if not session_created:
+            shutil.rmtree(tmp_dir, ignore_errors=True)

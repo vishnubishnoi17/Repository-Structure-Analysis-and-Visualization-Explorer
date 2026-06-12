@@ -1,4 +1,5 @@
 import math
+from collections import defaultdict
 from app.core.models import FileNode, Dependency
 
 
@@ -39,23 +40,19 @@ class GraphBuilder:
           edges: [ { id, source, target, animated } ... ]
         }
         """
-        nodes = [self._make_node(f, idx, len(files)) for idx, f in enumerate(files)]
+        positions = self._build_positions(files)
+        nodes = [self._make_node(f, positions[f.id]) for f in files]
         edges = self._make_edges(deps, {f.id for f in files})
 
         return {"nodes": nodes, "edges": edges}
 
-    def _make_node(self, file: FileNode, idx: int, total: int) -> dict:
-        # Lay out nodes in a spiral / grid so they don't all overlap
-        cols = max(1, math.ceil(math.sqrt(total)))
-        row = idx // cols
-        col = idx % cols
-
+    def _make_node(self, file: FileNode, position: tuple[float, float]) -> dict:
         return {
             "id": file.id,
-            "type": "fileNode",   # Custom React Flow node type
+            "type": "fileNode",
             "position": {
-                "x": col * 220,
-                "y": row * 160,
+                "x": position[0],
+                "y": position[1],
             },
             "data": {
                 "label": file.name,
@@ -68,8 +65,39 @@ class GraphBuilder:
                 "depth": file.depth,
                 "parent": file.parent,
                 "content_preview": file.content_preview,
+                "directory": file.parent or "root",
             },
         }
+
+    def _build_positions(self, files: list[FileNode]) -> dict[str, tuple[float, float]]:
+        by_depth: dict[int, list[FileNode]] = defaultdict(list)
+        for file in sorted(files, key=lambda item: (item.depth, item.parent or "", item.name)):
+            by_depth[file.depth].append(file)
+
+        positions: dict[str, tuple[float, float]] = {}
+        column_gap = 320
+        row_gap = 122
+        directory_gap = 52
+
+        for depth, group in by_depth.items():
+            y_offset = 0
+            grouped_by_parent: dict[str, list[FileNode]] = defaultdict(list)
+            for file in group:
+                grouped_by_parent[file.parent or "root"].append(file)
+
+            for parent in sorted(grouped_by_parent):
+                siblings = grouped_by_parent[parent]
+                for index, file in enumerate(siblings):
+                    loc_factor = min(max(file.loc, 20), 400)
+                    x_jitter = math.sin(index + depth) * 18
+                    y = y_offset + index * row_gap
+                    positions[file.id] = (
+                        depth * column_gap + (loc_factor / 400) * 40 + x_jitter,
+                        y,
+                    )
+                y_offset += max(len(siblings) * row_gap, row_gap) + directory_gap
+
+        return positions
 
     def _make_edges(
         self,

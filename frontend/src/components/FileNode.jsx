@@ -11,18 +11,18 @@ const EXT_ICON = {
 }
 
 const GROUP_COLOR = {
-  python:     '#3b82f6',
-  javascript: '#f59e0b',
-  typescript: '#06b6d4',
-  style:      '#a78bfa',
-  markup:     '#34d399',
-  config:     '#6b7280',
-  c_cpp:      '#ef4444',
-  go:         '#00add8',
-  rust:       '#f97316',
-  java:       '#ec4899',
-  docs:       '#64748b',
-  other:      '#475569',
+  python:     '#5d8cff',
+  javascript: '#f2a93b',
+  typescript: '#18b8d7',
+  style:      '#ec7db8',
+  markup:     '#41c28a',
+  config:     '#7d8ca4',
+  c_cpp:      '#f26d6d',
+  go:         '#45c6e8',
+  rust:       '#ff8f4d',
+  java:       '#ff6ca8',
+  docs:       '#7f8b9b',
+  other:      '#59708a',
 }
 
 function locClass(loc) {
@@ -41,17 +41,27 @@ function FileNode({ data, selected }) {
   const icon = EXT_ICON[data.extension] ?? '📄'
 
   return (
-    <div className={`file-node${selected ? ' file-node--selected' : ''}`}>
+    <div
+      className={`file-node${selected ? ' file-node--selected' : ''}`}
+      style={{ '--node-accent': color }}
+    >
       <Handle type="target" position={Position.Top} style={{ background: color }} />
 
       <div className="file-node__stripe" style={{ background: color }} />
 
       <div className="file-node__body">
+        <div className="file-node__topline">
+          <span className="file-node__group">{data.group.replace('_', ' ')}</span>
+          <span className="file-node__ext">{data.extension.replace('.', '') || 'file'}</span>
+        </div>
         <div className="file-node__name-row">
           <span className="file-node__icon">{icon}</span>
           <span className="file-node__name" title={data.rel_path}>
             {data.label}
           </span>
+        </div>
+        <div className="file-node__path" title={data.directory}>
+          {data.directory}
         </div>
         <div className="file-node__meta">
           <span className={`file-node__loc ${locClass(data.loc)}`}>
