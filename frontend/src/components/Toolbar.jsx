@@ -19,7 +19,7 @@ async function filesToZip(fileList) {
   // Lazy-load JSZip from the installed package
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
-
+  let added = 0
   const files = Array.from(fileList)
 
   for (const file of files) {
@@ -27,6 +27,11 @@ async function filesToZip(fileList) {
     if (shouldSkip(rel)) continue
     const buf = await file.arrayBuffer()
     zip.file(rel, buf)
+    added += 1
+  }
+
+  if (added === 0) {
+    throw new Error('No uploadable files found in the selected folder')
   }
 
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })
@@ -34,10 +39,17 @@ async function filesToZip(fileList) {
 
 export default function Toolbar() {
   const { scan, uploadAndScan } = useRepoGraph()
-  const { isLoading, scanError, nodes, edges } = useGraphStore()
+  const { isLoading, scanError, nodes, edges, setScanError } = useGraphStore()
   const [path, setPath] = useState('')
   const [uploadStatus, setUploadStatus] = useState(null) // null | 'zipping' | 'uploading'
   const folderInputRef = useRef(null)
+
+  function configureFolderInput(node) {
+    folderInputRef.current = node
+    if (!node) return
+    node.setAttribute('webkitdirectory', '')
+    node.setAttribute('directory', '')
+  }
 
   async function handleScan(e) {
     e.preventDefault()
@@ -61,7 +73,7 @@ export default function Toolbar() {
       setUploadStatus('uploading')
       await uploadAndScan(zipBlob)
     } catch (err) {
-      // error is set in store by uploadAndScan
+      setScanError(err.message || 'Local upload failed')
     } finally {
       setUploadStatus(null)
     }
@@ -103,10 +115,8 @@ export default function Toolbar() {
 
       {/* Local folder upload */}
       <input
-        ref={folderInputRef}
+        ref={configureFolderInput}
         type="file"
-        webkitdirectory="true"
-        directory="true"
         multiple
         style={{ display: 'none' }}
         onChange={handleFolderSelect}

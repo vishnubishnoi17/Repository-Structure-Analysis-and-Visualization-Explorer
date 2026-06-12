@@ -19,6 +19,13 @@ def _get_ai_service():
         )
 
 
+def _sanitize_ai_error(error: Exception) -> str:
+    message = str(error)
+    if "key=" in message:
+        return "AI provider request failed. Check GEMINI_API_KEY and GEMINI_MODEL."
+    return f"AI service error: {message}"
+
+
 class AnalyzeRequest(BaseModel):
     file_path: str
     file_content: str
@@ -52,7 +59,7 @@ async def analyze_file(request: AnalyzeRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+        raise HTTPException(status_code=500, detail=_sanitize_ai_error(e))
 
 
 @router.post("/chat")
@@ -69,7 +76,7 @@ async def chat_about_file(request: ChatRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+        raise HTTPException(status_code=500, detail=_sanitize_ai_error(e))
 
 
 @router.get("/cache/stats")

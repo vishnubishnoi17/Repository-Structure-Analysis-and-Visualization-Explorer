@@ -70,11 +70,16 @@ async function filesToZip(fileList) {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
   const files = Array.from(fileList)
+  let added = 0
   for (const file of files) {
     const rel = file.webkitRelativePath || file.name
     if (shouldSkip(rel)) continue
     const buf = await file.arrayBuffer()
     zip.file(rel, buf)
+    added += 1
+  }
+  if (added === 0) {
+    throw new Error('No uploadable files found in the selected folder')
   }
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })
 }
@@ -83,6 +88,13 @@ export default function EmptyState() {
   const { scan, uploadAndScan } = useRepoGraph()
   const { isLoading, setScanError } = useGraphStore()
   const folderInputRef = useRef(null)
+
+  function configureFolderInput(node) {
+    folderInputRef.current = node
+    if (!node) return
+    node.setAttribute('webkitdirectory', '')
+    node.setAttribute('directory', '')
+  }
 
   function fillInput(url) {
     const input = document.querySelector('.toolbar__path-input')
@@ -102,7 +114,9 @@ export default function EmptyState() {
     try {
       const zipBlob = await filesToZip(files)
       await uploadAndScan(zipBlob)
-    } catch (_) {}
+    } catch (err) {
+      setScanError(err.message || 'Local upload failed')
+    }
   }
 
   return (
@@ -144,10 +158,8 @@ export default function EmptyState() {
         </div>
 
         <input
-          ref={folderInputRef}
+          ref={configureFolderInput}
           type="file"
-          webkitdirectory="true"
-          directory="true"
           multiple
           style={{ display: 'none' }}
           onChange={handleFolderSelect}

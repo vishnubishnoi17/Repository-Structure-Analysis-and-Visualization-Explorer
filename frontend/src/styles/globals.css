@@ -64,14 +64,18 @@ button, input {
 }
 
 .toolbar {
+  position: relative;
+  z-index: 40;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   min-height: 72px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(9, 19, 28, 0.95), rgba(8, 17, 26, 0.88));
   backdrop-filter: blur(18px);
+  overflow: visible;
 }
 
 .toolbar__brand {
@@ -217,7 +221,9 @@ button, input {
 
 .search-bar {
   position: relative;
-  width: 240px;
+  width: min(280px, 100%);
+  margin-left: auto;
+  z-index: 60;
 }
 
 .search-bar__input {
@@ -245,7 +251,7 @@ button, input {
   border: 1px solid var(--border);
   background: rgba(9, 19, 28, 0.96);
   box-shadow: var(--shadow);
-  z-index: 30;
+  z-index: 999;
 }
 
 .search-bar__result {
@@ -295,6 +301,7 @@ button, input {
   min-height: 0;
   border-radius: 28px;
   overflow: hidden;
+  z-index: 1;
 }
 
 .workspace-shell__intro {
@@ -730,6 +737,11 @@ button, input {
   .toolbar__scan-form {
     max-width: none;
     min-width: 100%;
+  }
+
+  .search-bar {
+    width: 100%;
+    margin-left: 0;
   }
 
   .side-panel {

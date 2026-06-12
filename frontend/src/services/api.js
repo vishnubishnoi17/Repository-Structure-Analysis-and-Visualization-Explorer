@@ -67,10 +67,12 @@ export async function uploadRepo(zipBlob, options = {}) {
   form.append('file', zipBlob, 'project.zip')
   const params = new URLSearchParams()
   if (options.maxDepth) params.set('max_depth', options.maxDepth)
-  const { data } = await client.post(`/repo/upload?${params}`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 180000,
-  })
+  const query = params.toString()
+  const { data } = await client.post(
+    query ? `/repo/upload?${query}` : '/repo/upload',
+    form,
+    { timeout: 180000 }
+  )
   return data
 }
 
