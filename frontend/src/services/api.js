@@ -46,6 +46,18 @@ export async function chatAboutFile(filePath, fileContent, question) {
   return data
 }
 
+export async function uploadRepo(zipBlob, options = {}) {
+  const form = new FormData()
+  form.append('file', zipBlob, 'project.zip')
+  const params = new URLSearchParams()
+  if (options.maxDepth) params.set('max_depth', options.maxDepth)
+  const { data } = await client.post(`/repo/upload?${params}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 180000,
+  })
+  return data
+}
+
 export async function getFileMetrics(path) {
   const { data } = await client.get('/metrics/file', { params: { path } })
   return data

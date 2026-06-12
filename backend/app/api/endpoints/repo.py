@@ -112,3 +112,76 @@ async def read_file(path: str = Query(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Local upload endpoint ─────────────────────────────────────────────────────
+
+from fastapi import UploadFile, File
+import zipfile
+import tempfile
+
+@router.post("/upload")
+async def upload_repository(
+    file: UploadFile = File(...),
+    max_depth: int = 10,
+):
+    """
+    Accept a ZIP of a local project, extract to temp dir, scan & return graph.
+    Frontend zips the folder client-side using JSZip, sends here.
+    """
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip files are accepted")
+
+    tmp_dir = tempfile.mkdtemp(prefix="repoviz_upload_")
+    try:
+        # Save uploaded zip
+        zip_path = os.path.join(tmp_dir, "upload.zip")
+        content = await file.read()
+        with open(zip_path, "wb") as f:
+            f.write(content)
+
+        # Extract
+        extract_dir = os.path.join(tmp_dir, "extracted")
+        os.makedirs(extract_dir)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            # Security: skip absolute paths and path traversal
+            for member in zf.namelist():
+                member_path = os.path.realpath(os.path.join(extract_dir, member))
+                if not member_path.startswith(os.path.realpath(extract_dir)):
+                    continue
+                zf.extract(member, extract_dir)
+
+        # If zip has a single top-level folder, use it as root
+        entries = os.listdir(extract_dir)
+        if len(entries) == 1 and os.path.isdir(os.path.join(extract_dir, entries[0])):
+            scan_root = os.path.join(extract_dir, entries[0])
+        else:
+            scan_root = extract_dir
+
+        scanner = RepoScanner(scan_root, max_depth=max_depth, exclude_dirs=EXCLUDE_DEFAULTS)
+        files = scanner.scan()
+
+        if len(files) > 2000:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Project has {len(files)} files — too large (max 2000). Try a subdirectory.",
+            )
+
+        parser = DependencyParser()
+        file_deps = parser.parse_all(files)
+
+        builder = GraphBuilder()
+        graph = builder.build(files, file_deps, base_path=scan_root)
+
+        for node in graph["nodes"]:
+            node["data"].pop("abs_path", None)
+
+        return {
+            "status": "success",
+            "base_path": os.path.basename(scan_root),
+            "node_count": len(graph["nodes"]),
+            "edge_count": len(graph["edges"]),
+            "graph": graph,
+        }
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)

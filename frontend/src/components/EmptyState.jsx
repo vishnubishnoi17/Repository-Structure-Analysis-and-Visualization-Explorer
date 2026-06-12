@@ -1,46 +1,182 @@
-import React from 'react'
+import React, { useRef } from 'react'
+import { useRepoGraph } from '../hooks/useRepoGraph'
 import { useGraphStore } from '../store/graphStore'
 
+// Small, focused repos — 10-20 files each, scan fast, look great in the graph
 const EXAMPLES = [
-  'https://github.com/tiangolo/fastapi',
-  'https://github.com/vitejs/vite',
-  'https://github.com/vuejs/vue',
+  {
+    url: 'https://github.com/kelseyhightower/nocode',
+    label: 'nocode',
+    desc: 'The best code is no code',
+    lang: 'Markdown',
+    color: '#3ecf8e',
+  },
+  {
+    url: 'https://github.com/sindresorhus/ora',
+    label: 'sindresorhus/ora',
+    desc: 'Elegant terminal spinner · Node.js',
+    lang: 'JS',
+    color: '#f6a623',
+  },
+  {
+    url: 'https://github.com/nicolo-ribaudo/tc39-proposal-function-memo',
+    label: 'tc39/function-memo',
+    desc: 'TC39 JS proposal · tiny codebase',
+    lang: 'JS',
+    color: '#f6a623',
+  },
+  {
+    url: 'https://github.com/simonw/shot-scraper',
+    label: 'simonw/shot-scraper',
+    desc: 'CLI screenshot tool · Python',
+    lang: 'Python',
+    color: '#5b7bff',
+  },
+  {
+    url: 'https://github.com/realpython/codetiming',
+    label: 'realpython/codetiming',
+    desc: 'Flexible Python timer · ~15 files',
+    lang: 'Python',
+    color: '#5b7bff',
+  },
+  {
+    url: 'https://github.com/charmbracelet/harmonica',
+    label: 'charmbracelet/harmonica',
+    desc: 'Spring animation lib · Go',
+    lang: 'Go',
+    color: '#00acd7',
+  },
 ]
 
+const LANG_COLORS = {
+  JS: '#f6a623',
+  Python: '#5b7bff',
+  Go: '#00acd7',
+  Markdown: '#3ecf8e',
+}
+
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '__pycache__', '.venv', 'venv',
+  'dist', 'build', '.next', '.cache', 'target', 'out',
+  '.mypy_cache', '.pytest_cache', 'coverage',
+])
+
+function shouldSkip(relativePath) {
+  const parts = relativePath.split('/')
+  return parts.some(p => SKIP_DIRS.has(p) || p.startsWith('.'))
+}
+
+async function filesToZip(fileList) {
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+  const files = Array.from(fileList)
+  for (const file of files) {
+    const rel = file.webkitRelativePath || file.name
+    if (shouldSkip(rel)) continue
+    const buf = await file.arrayBuffer()
+    zip.file(rel, buf)
+  }
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })
+}
+
 export default function EmptyState() {
-  // We can't directly set path from here — so we'll use a custom event
-  function fillInput(path) {
-    // Find the input and fill it
+  const { scan, uploadAndScan } = useRepoGraph()
+  const { isLoading, setScanError } = useGraphStore()
+  const folderInputRef = useRef(null)
+
+  function fillInput(url) {
     const input = document.querySelector('.toolbar__path-input')
     if (input) {
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-      nativeSetter.call(input, path)
+      nativeSetter.call(input, url)
       input.dispatchEvent(new Event('input', { bubbles: true }))
-      input.focus()
     }
+    // auto-scan immediately
+    scan(url)
+  }
+
+  async function handleFolderSelect(e) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    e.target.value = ''
+    try {
+      const zipBlob = await filesToZip(files)
+      await uploadAndScan(zipBlob)
+    } catch (_) {}
   }
 
   return (
     <div className="empty-state">
       <div className="empty-state__grid" />
       <div className="empty-state__content">
-        <div className="empty-state__icon">⬡</div>
-        <h1 className="empty-state__title">Visualize any codebase</h1>
-        <p className="empty-state__sub">
-          Enter a GitHub URL or local directory path above to map out file structure and dependencies.
-        </p>
-        <div className="empty-state__examples">
-          <div className="empty-state__example-label">Try an example</div>
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              className="empty-state__example"
-              onClick={() => fillInput(ex)}
-            >
-              {ex}
-            </button>
-          ))}
+
+        <div className="empty-state__hero">
+          <div className="empty-state__hex">⬡</div>
+          <h1 className="empty-state__title">Visualize any codebase</h1>
+          <p className="empty-state__sub">
+            Paste a GitHub URL in the toolbar and hit <kbd>Scan</kbd> — or drop your local project below.
+          </p>
         </div>
+
+        {/* Two input modes */}
+        <div className="empty-state__modes">
+          <div className="empty-state__mode">
+            <div className="empty-state__mode-icon">⎆</div>
+            <div className="empty-state__mode-text">
+              <div className="empty-state__mode-title">GitHub Repo</div>
+              <div className="empty-state__mode-desc">Paste any public GitHub URL in the toolbar above</div>
+            </div>
+          </div>
+          <div className="empty-state__mode-sep">or</div>
+          <div
+            className="empty-state__mode empty-state__mode--upload"
+            onClick={() => folderInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => e.key === 'Enter' && folderInputRef.current?.click()}
+          >
+            <div className="empty-state__mode-icon">⬆</div>
+            <div className="empty-state__mode-text">
+              <div className="empty-state__mode-title">Local Folder</div>
+              <div className="empty-state__mode-desc">Click to select a project folder from your machine</div>
+            </div>
+          </div>
+        </div>
+
+        <input
+          ref={folderInputRef}
+          type="file"
+          webkitdirectory="true"
+          directory="true"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFolderSelect}
+        />
+
+        {/* Example repos */}
+        <div className="empty-state__examples">
+          <div className="empty-state__example-label">Quick examples — small repos, fast scans</div>
+          <div className="empty-state__example-grid">
+            {EXAMPLES.map((ex) => (
+              <button
+                key={ex.url}
+                className="empty-state__example-card"
+                onClick={() => fillInput(ex.url)}
+                disabled={isLoading}
+              >
+                <span
+                  className="empty-state__lang-badge"
+                  style={{ background: LANG_COLORS[ex.lang] + '22', color: LANG_COLORS[ex.lang] }}
+                >
+                  {ex.lang}
+                </span>
+                <div className="empty-state__card-label">{ex.label}</div>
+                <div className="empty-state__card-desc">{ex.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   )

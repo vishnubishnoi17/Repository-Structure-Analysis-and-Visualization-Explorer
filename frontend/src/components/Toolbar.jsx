@@ -1,12 +1,43 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useRepoGraph } from '../hooks/useRepoGraph'
 import { useGraphStore } from '../store/graphStore'
 import SearchBar from './SearchBar'
 
+// Excluded dirs/files when zipping locally
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '__pycache__', '.venv', 'venv',
+  'dist', 'build', '.next', '.cache', 'target', 'out',
+  '.mypy_cache', '.pytest_cache', 'coverage',
+])
+
+function shouldSkip(relativePath) {
+  const parts = relativePath.split('/')
+  return parts.some(p => SKIP_DIRS.has(p) || p.startsWith('.'))
+}
+
+async function filesToZip(fileList) {
+  // Lazy-load JSZip from the installed package
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+
+  const files = Array.from(fileList)
+
+  for (const file of files) {
+    const rel = file.webkitRelativePath || file.name
+    if (shouldSkip(rel)) continue
+    const buf = await file.arrayBuffer()
+    zip.file(rel, buf)
+  }
+
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } })
+}
+
 export default function Toolbar() {
-  const { scan } = useRepoGraph()
+  const { scan, uploadAndScan } = useRepoGraph()
   const { isLoading, scanError, nodes, edges } = useGraphStore()
   const [path, setPath] = useState('')
+  const [uploadStatus, setUploadStatus] = useState(null) // null | 'zipping' | 'uploading'
+  const folderInputRef = useRef(null)
 
   async function handleScan(e) {
     e.preventDefault()
@@ -17,6 +48,32 @@ export default function Toolbar() {
   function handleKeyDown(e) {
     if (e.key === 'Enter') handleScan(e)
   }
+
+  async function handleFolderSelect(e) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    // Reset input so same folder can be re-selected
+    e.target.value = ''
+
+    try {
+      setUploadStatus('zipping')
+      const zipBlob = await filesToZip(files)
+      setUploadStatus('uploading')
+      await uploadAndScan(zipBlob)
+    } catch (err) {
+      // error is set in store by uploadAndScan
+    } finally {
+      setUploadStatus(null)
+    }
+  }
+
+  const uploadLabel = uploadStatus === 'zipping'
+    ? 'Zipping…'
+    : uploadStatus === 'uploading'
+    ? 'Uploading…'
+    : '⬆ Local'
+
+  const busy = isLoading || uploadStatus !== null
 
   return (
     <header className="toolbar">
@@ -31,18 +88,37 @@ export default function Toolbar() {
           value={path}
           onChange={(e) => setPath(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="github.com/owner/repo  or  /local/path"
+          placeholder="github.com/owner/repo"
           spellCheck={false}
           autoComplete="off"
         />
         <button
           className={`toolbar__scan-btn${isLoading ? ' loading' : ''}`}
           type="submit"
-          disabled={isLoading || !path.trim()}
+          disabled={busy || !path.trim()}
         >
           {isLoading ? 'Scanning…' : 'Scan'}
         </button>
       </form>
+
+      {/* Local folder upload */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        webkitdirectory="true"
+        directory="true"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFolderSelect}
+      />
+      <button
+        className={`toolbar__upload-btn${uploadStatus ? ' loading' : ''}`}
+        onClick={() => folderInputRef.current?.click()}
+        disabled={busy}
+        title="Upload a local project folder"
+      >
+        {uploadLabel}
+      </button>
 
       {nodes.length > 0 && (
         <>

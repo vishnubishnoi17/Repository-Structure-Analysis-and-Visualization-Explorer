@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { scanRepo } from '../services/api'
+import { scanRepo, uploadRepo } from '../services/api'
 import { useGraphStore } from '../store/graphStore'
 
 export function useRepoGraph() {
@@ -21,5 +21,21 @@ export function useRepoGraph() {
     }
   }, [setGraph, setLoading, setScanError])
 
-  return { scan }
+  const uploadAndScan = useCallback(async (zipBlob, options = {}) => {
+    setLoading(true)
+    setScanError(null)
+    try {
+      const result = await uploadRepo(zipBlob, options)
+      setGraph(result.graph.nodes, result.graph.edges, result.base_path)
+      return result
+    } catch (err) {
+      const msg = err.response?.data?.detail ?? err.message ?? 'Upload failed'
+      setScanError(msg)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [setGraph, setLoading, setScanError])
+
+  return { scan, uploadAndScan }
 }
